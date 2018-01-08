@@ -1,0 +1,167 @@
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    #include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+
+#define SET_UP    PORTB|=(1<<PB1)
+#define SET_DOWN  PORTB&=~(1<<PB1)
+
+
+#define PWM_TOP 0x0F
+#define PWM_LOW 0x0F
+
+void set_gpio(void);
+void set_interrupt(void);
+void set_level_zero(void);
+void set_level_one(void);
+void set_level_two(void);
+
+void set_pwm_up(void);
+void set_pwm_down(void);
+
+volatile int stan=0;
+volatile int lok=0;
+
+
+int main(void)
+{
+
+set_gpio();
+set_interrupt();
+DDRD|=(1<<PD5);
+PORTD|=(1<<PD5);
+set_level_zero();
+
+
+while(1)
+{
+
+}
+
+
+}
+
+
+void set_gpio(void)
+{
+
+DDRA&=~((1<<PA0) | (1<<PA1) | (1<<PA2) | (1<<PA3) | (1<<PA4) | (1<<PA5));
+PORTA|=((1<<PA0) | (1<<PA1) | (1<<PA2) | (1<<PA3) | (1<<PA4) | (1<<PA5));
+
+DDRB|=(1<<PB1);
+
+DDRD&=~((1<<PD2) | (1<<PD3));//przerwania
+DDRD|=(1<<PD5) | (1<<PD4); //pwm
+PORTD|=((1<<PD2) | (1<<PD3));
+
+}
+
+
+
+
+void set_interrupt(void)
+{
+
+GICR|= (1<<INT0) | (1<<INT1);
+MCUCR|= (1<<ISC01) | (1<<ISC11);
+sei();
+
+}
+
+void start_pwm(void)
+{
+
+TCCR1A=(1<<WGM10) | (1<<WGM11) | (1<<COM1A1) | (1<<COM1B1);
+TCCR1B=(1<<CS11);
+
+OCR1A=PWM_LOW;
+OCR1B=PWM_LOW;
+DDRD|=(1<<PD5) | (1<<PD4);
+}
+
+void stop_pwm(void)
+{
+OCR1A=0x00;
+OCR1B=0x00;
+
+}
+
+ISR(INT0_vect) //niekoniecznie
+{
+
+//if(!(PINA & (1<<PA3))) {lok=0;} 
+//if(!(PINA & (1<<PA4))) {lok=1;} 
+//if(!(PINA & (1<<PA5))) {lok=2;} 
+}
+
+
+ISR(INT1_vect)
+{
+if(!(PINA & (1<<PA0))) {set_level_zero();}
+if(!(PINA & (1<<PA1))) {set_level_one();}
+if(!(PINA & (1<<PA2))) {set_level_two();}
+}
+
+
+
+void set_level_zero(void)
+{
+
+DDRB|=(1<<PB0);
+PORTB|=(1<<PB0);
+while((PINA & (1<<PA3))) 
+{
+set_pwm_down();
+
+}
+stop_pwm();
+lok=0;
+}
+
+void set_level_one(void)
+{
+while((PINA & (1<<PA4))) 
+{
+if(lok==0) {set_pwm_up();}
+else if(lok==2) {set_pwm_down();}
+}
+stop_pwm();
+lok=1;
+}
+
+void set_level_two(void)
+{
+
+while((PINA & (1<<PA5))) 
+{
+set_pwm_up();
+
+}
+stop_pwm();
+lok=2;
+}
+
+
+void set_pwm_up(void)
+{
+
+TCCR1A=(1<<WGM10) | (1<<WGM11) | (1<<COM1A1) | (1<<COM1B1);
+TCCR1B=(1<<CS11);
+OCR1A=0x00;
+OCR1B=0x3FF;
+_delay_ms(200);
+OCR1B=0x1FF;
+
+}
+void set_pwm_down(void)
+{
+
+TCCR1A=(1<<WGM10) | (1<<WGM11) | (1<<COM1A1) | (1<<COM1B1);
+TCCR1B=(1<<CS11);
+OCR1B=0x00;
+OCR1A=0x2FF;
+_delay_ms(200);
+OCR1A=0xFF;
+
+}
+
